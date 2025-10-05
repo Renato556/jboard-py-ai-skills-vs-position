@@ -10,6 +10,7 @@ env:
   RESOURCE_GROUP: jboard-microservices
   CONTAINER_APP_ENVIRONMENT: jboard-environment
   IMAGE_NAME: jboard-py-ai-skills-vs-position
+  TARGET_PORT: 8082
 
 jobs:
   test-and-setup:
@@ -84,11 +85,16 @@ jobs:
     - name: Deploy to Azure Container Apps
       uses: azure/container-apps-deploy-action@v1
       with:
-        acrName: ${{ env.AZURE_CONTAINER_REGISTRY }}
         containerAppName: ${{ env.CONTAINER_APP_NAME }}
         resourceGroup: ${{ env.RESOURCE_GROUP }}
         imageToDeploy: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        environmentVariables: |
+        containerAppEnvironment: ${{ env.CONTAINER_APP_ENVIRONMENT }}
+        targetPort: ${{ env.TARGET_PORT }}
+        ingress: external
+        registryUrl: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
+        registryUsername: ${{ secrets.ACR_USERNAME }}
+        registryPassword: ${{ secrets.ACR_PASSWORD }}
+        environmentVariables: >
           FLASK_ENV=production
           DEBUG=false
           HOST=0.0.0.0
