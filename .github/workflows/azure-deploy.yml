@@ -1,0 +1,127 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [ master, main, feature/* ]
+
+env:
+  AZURE_CONTAINER_REGISTRY: jboardregistry
+  CONTAINER_APP_NAME: jboard-py-ai-skills-vs-position
+  RESOURCE_GROUP: jboard-microservices
+  CONTAINER_APP_ENVIRONMENT: jboard-environment
+  IMAGE_NAME: jboard-py-ai-skills-vs-position
+
+jobs:
+  test-and-setup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        python -m pytest src/ -v --cov=src --cov-report=html --cov-fail-under=90
+      env:
+        OPENAI_API_KEY: "test-api-key"
+        OPENAI_API_URL: "https://test.openai.com"
+        FLASK_ENV: "testing"
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    needs: test-and-setup
+    if: ${{ success() }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver: docker-container
+
+    - name: Log in to Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Log in to Azure Container Registry
+      uses: azure/docker-login@v1
+      with:
+        login-server: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
+        username: ${{ secrets.ACR_USERNAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:latest
+          ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        platforms: linux/amd64
+
+    - name: Deploy to Azure Container Apps
+      uses: azure/container-apps-deploy-action@v1
+      with:
+        acrName: ${{ env.AZURE_CONTAINER_REGISTRY }}
+        containerAppName: ${{ env.CONTAINER_APP_NAME }}
+        resourceGroup: ${{ env.RESOURCE_GROUP }}
+        imageToDeploy: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        environmentVariables: |
+          FLASK_ENV=production
+          DEBUG=false
+          HOST=0.0.0.0
+          PORT=8082
+          REQUEST_TIMEOUT=${{ secrets.REQUEST_TIMEOUT }}
+          LOG_LEVEL=${{ secrets.LOG_LEVEL }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_URL=${{ secrets.OPENAI_API_URL }}
+
+    - name: Deployment Summary
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "# ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "AI Skills vs Position Analyzer deployed successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Container App: ${{ env.CONTAINER_APP_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: ${{ env.CONTAINER_APP_ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Port: 8082" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "# ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check which step failed
+          if [ "${{ needs.test-and-setup.result }}" != "success" ]; then
+            echo "🧪 **Tests Failed:** Check Python test failures and 90% coverage requirement" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🚀 **Deployment Failed:** Check Azure credentials, Container Registry access, and Container App configuration" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "💡 Fix the issue and push a new commit to retry deployment." >> $GITHUB_STEP_SUMMARY
+        fi
