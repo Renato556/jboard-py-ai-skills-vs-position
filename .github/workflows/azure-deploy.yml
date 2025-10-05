@@ -99,8 +99,8 @@ jobs:
           DEBUG=false
           HOST=0.0.0.0
           PORT=8082
-          REQUEST_TIMEOUT=${{ secrets.REQUEST_TIMEOUT }}
-          LOG_LEVEL=${{ secrets.LOG_LEVEL }}
+          REQUEST_TIMEOUT=300
+          LOG_LEVEL=INFO
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_URL=${{ secrets.OPENAI_API_URL }}
 
