@@ -90,7 +90,7 @@ jobs:
         imageToDeploy: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ github.sha }}
         containerAppEnvironment: ${{ env.CONTAINER_APP_ENVIRONMENT }}
         targetPort: ${{ env.TARGET_PORT }}
-        ingress: external
+        ingress: internal
         registryUrl: ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io
         registryUsername: ${{ secrets.ACR_USERNAME }}
         registryPassword: ${{ secrets.ACR_PASSWORD }}
