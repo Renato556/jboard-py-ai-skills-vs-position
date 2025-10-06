@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
     HOST = os.getenv('HOST', '0.0.0.0')
-    PORT = int(os.getenv('PORT', 5000))
+    PORT = int(os.getenv('PORT', 8082))
     REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', 10))
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
